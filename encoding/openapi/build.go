@@ -217,6 +217,7 @@ func schemas(g *Generator, inst cue.InstanceOrValue) (schemas *ast.StructLit, er
 }
 
 func (c *buildContext) build(name cue.Selector, v cue.Value) *ast.StructLit {
+	cache = make(map[string]*ast.StructLit)
 	return newCoreBuilder(c).schema(nil, name, v)
 }
 
@@ -249,10 +250,20 @@ func (b *builder) checkArgs(a []cue.Value, n int) {
 	}
 }
 
+// cache holds those schemas built and filled to make the compute time lower.
+// It must be cleared for each buildContext.build() execution.
+// TODO (sergicastro) deeply investigate why this works and makes it really fast.
+var cache = make(map[string]*ast.StructLit)
+
 func (b *builder) schema(core *builder, name cue.Selector, v cue.Value) *ast.StructLit {
 	oldPath := b.ctx.path
 	b.ctx.path = append(b.ctx.path, name)
 	defer func() { b.ctx.path = oldPath }()
+
+	cacheKey := v.Path().String()
+	if st, ok := cache[cacheKey]; ok {
+		return st
+	}
 
 	var c *builder
 	if core == nil && b.ctx.structural {
@@ -264,7 +275,9 @@ func (b *builder) schema(core *builder, name cue.Selector, v cue.Value) *ast.Str
 		c.core = core
 	}
 
-	return c.fillSchema(v)
+	st := c.fillSchema(v)
+	cache[cacheKey] = st
+	return st
 }
 
 func (b *builder) getDoc(v cue.Value) {
