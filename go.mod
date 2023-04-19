@@ -1,4 +1,4 @@
-module cuelang.org/go
+module github.com/sergicastro/cue
 
 go 1.19
 
